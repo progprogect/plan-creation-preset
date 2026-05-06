@@ -568,6 +568,10 @@ curl -X POST https://api.extella.ai/api/task/check \
 | Файлы не в настоящих «Загрузках», путь вида `.../~/Downloads/` | Раньше **`~` не раскрывался** | В параметре **`output_dir`** можно указывать `~/Downloads` — в пресете путь обрабатывается через **`expanduser`**; либо давайте **абсолютный** путь |
 | OpenAI / KV не работает из облачного агента | Значения KV с **`$enc:`** требуют контекста устройства / PIN | Передавайте ключ в **`openai_api_key`**, или запускайте эксперт с **`target`** (локальное устройство Extella Desktop), или разблокируйте KV |
 | Нет PDF с вектором, только fallback PNG | Нет **Cairo/CairoSVG** на воркере | Ожидаемо на части сред; **SVG** в выводе обычно есть; для PDF — окружение с Cairo или локальный target |
+| Агент запускает подряд **`floorplan_openai_layout`** и **`floorplan_full_openai_pipeline`** | В концепте раньше выглядело как «список шагов» | Для текста ТЗ — **только** `floorplan_full_openai_pipeline`; layout отдельно — только для явной пошаговой отладки |
+| Плохие / странные картинки узлов | Старая модель **DALL·E 3** или короткий промпт | В пресете по умолчанию **`gpt-image-2`** (GPT Image 2, OpenAI, 2026). Это **не** GPT‑2 (текст). Резерв: параметр **`image_model`** = `dall-e-3` |
+
+Документация OpenAI по модели: [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).
 
 Публикация пресета в Extella: переменная **`EXTELLA_API_TOKEN`** (то же значение, что и **`EXTELLA_TOKEN`** в примерах выше), скрипт `preset_floorplan/scripts/bootstrap_api.py`.
 

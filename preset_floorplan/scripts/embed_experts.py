@@ -359,7 +359,7 @@ def floorplan_openai_equipment_images(
     spec_json: str = "",
     output_dir: str = "",
     openai_api_key: str = "",
-    image_model: str = "dall-e-3",
+    image_model: str = "gpt-image-2",
     skip_existing: bool = True,
 ) -> dict:
     try:
@@ -414,7 +414,7 @@ def floorplan_openai_overview_image(
     summary_text: str = "",
     output_dir: str = "",
     openai_api_key: str = "",
-    image_model: str = "dall-e-3",
+    image_model: str = "gpt-image-2",
 ) -> dict:
     if not (summary_text or "").strip():
         return {"status": "error", "message": "summary_text_required", "png_path": None}
@@ -441,7 +441,7 @@ def floorplan_full_openai_pipeline(
     units: str = "cm",
     openai_api_key: str = "",
     chat_model: str = "gpt-4o-mini",
-    image_model: str = "dall-e-3",
+    image_model: str = "gpt-image-2",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",
     dpi: int = 150,
@@ -480,7 +480,7 @@ def _floorplan_full_openai_pipeline_run(
     units: str = "cm",
     openai_api_key: str = "",
     chat_model: str = "gpt-4o-mini",
-    image_model: str = "dall-e-3",
+    image_model: str = "gpt-image-2",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",
     dpi: int = 150,

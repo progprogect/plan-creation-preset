@@ -19,8 +19,11 @@
 - При наличии валидного растра векторные примитивы узла из `library_key`/`parametric_symbol` для этого элемента **не рисуются** (только картинка в том же transform, что и SVG-символы).
 
 ## OpenAI
-- Chat (JSON strict): эксперт **`floorplan_openai_layout`**. Images: **`floorplan_openai_equipment_images`**, **`floorplan_openai_overview_image`**. Полный конвейер: **`floorplan_full_openai_pipeline`**.
-`conveyor_linear`, `robot_cell`, `tank`, `workstation`, `pallet_conveyor`, `packing_block`, `stretch_wrapper`, `generic` (fallback).
+- **Оркестрация:** по тексту ТЗ обычно достаточно **одного** эксперта **`floorplan_full_openai_pipeline`** (внутри Chat + при необходимости картинки + экспорт). Не цеплять **`floorplan_openai_layout`** перед ним на то же ТЗ.
+- Chat (строгий JSON): **`floorplan_openai_layout`** или шаг внутри full pipeline. Images: **`floorplan_openai_equipment_images`**, **`floorplan_openai_overview_image`**.
+- Модель **картинок** по умолчанию: **`gpt-image-2`** (GPT Image 2); резерв **`dall-e-3`**. Не путать с **GPT‑2** (текст).
+- Эксперт слияния черновика: **`floorplan_layout_draft_merge`** — если `layout_draft` уже есть снаружи.
+- Справочник `library_key`: `conveyor_linear`, `robot_cell`, `tank`, `workstation`, `pallet_conveyor`, `packing_block`, `stretch_wrapper`, `generic`.
 
 ## Параметрический слой
 Примитивы: `line`, `rect`, `circle`, `polyline`, `hatch_rect`; не более **300** на единицу оборудования.

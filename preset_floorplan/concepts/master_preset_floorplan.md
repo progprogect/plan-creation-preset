@@ -19,25 +19,35 @@
 
 После ответов сформируй валидный JSON (`version: 1` или **2**; для оборудования — **2**), `rooms[]` без самопересечений, и передай в `spec_json`.
 
-## Мастер-оркестрация
-1. Вход: `spec_json` — строка JSON по канонической модели (см. `preset_floorplan/schema/floorplan_spec.schema.json` и концепт `domain_floorplan_geometry_export`).
-2. Рекомендуемый единый вызов: эксперт **`floorplan_build_pipeline`** — валидация → SVG → при необходимости PDF/PNG.
-3. Атомарные эксперты (опционально): `floorplan_spec_validate`, `floorplan_render_svg`, `floorplan_export_pdf`, `floorplan_export_png` — для отладки или частичного конвейера.
+## Какой эксперт вызывать (главное — без дублирования)
 
-## Многошаговый пайплайн с OpenAI (опционально)
+Имена экспертов фиксированы; **не придумывай** другие. Модель **`gpt-image-2`** (GPT Image 2, 2026) — для **генерации изображений** через OpenAI Images API. Это **не** «GPT‑2»: GPT‑2 — старая **текстовая** модель и к картинкам не относится.
+
+| Ситуация | Единственный вызов (если не просят «пошагово») |
+|----------|-----------------------------------------------|
+| У пользователя уже есть **готовый `spec_json`** | **`floorplan_build_pipeline`** |
+| Нужно из **текста ТЗ** получить план, PNG узлов (опц.) и экспорт SVG/PDF/PNG | **`floorplan_full_openai_pipeline`** |
+| Черновик **layout_draft** уже есть строкой JSON (не из Chat этого пресета) | **`floorplan_layout_draft_merge`**, затем при необходимости `floorplan_openai_equipment_images` и **`floorplan_build_pipeline`** |
+
+**Запрещённая плохая последовательность:** сначала **`floorplan_openai_layout`**, потом **`floorplan_full_openai_pipeline`** на то же ТЗ — второй снова делает разметку, двойная работа и путаница в логах.
+
+**Пошаговая отладка** (только если пользователь явно просит разбить): `floorplan_openai_layout` → `floorplan_openai_equipment_images` → `floorplan_build_pipeline` → при необходимости `floorplan_openai_overview_image`.
+
+Параметр **`image_model`** у экспертов с картинками: по умолчанию **`gpt-image-2`**. Если аккаунт/тариф не принимает эту модель, можно передать **`dall-e-3`** (резерв).
+
+## Мастер-оркестрация (JSON уже есть)
+1. Вход: `spec_json` — строка JSON по канонической модели (см. `preset_floorplan/schema/floorplan_spec.schema.json` и концепт `domain_floorplan_geometry_export`).
+2. **Один** вызов: **`floorplan_build_pipeline`** — валидация → SVG → при необходимости PDF/PNG.
+3. Атомарные эксперты только для отладки: `floorplan_spec_validate`, `floorplan_render_svg`, `floorplan_export_pdf`, `floorplan_export_png`.
+
+## Многошаговый пайплайн с OpenAI (текст → план)
 Ключ **OpenAI** не вставлять в текст концепта: только **KV Store** (`OPENAI_API_KEY`) или параметр `openai_api_key` у эксперта.
 
 **Схема черновика раскладки:** `preset_floorplan/schema/layout_draft.schema.json` (версия черновика `version: 1`).
 
-**Эксперты (последовательность по желанию):**
-1. **`floorplan_openai_layout`** — по текстовому ТЗ и единицам вызывает Chat API, возвращает `layout_draft` и готовый **`spec_json`** (v2, placeholder `library_key` + `openai_image_hint`).
-2. **`floorplan_layout_draft_merge`** — если черновик уже есть (например от другой LLM): только слияние в `spec_json`.
-3. **`floorplan_openai_equipment_images`** — для каждого `equipment` генерирует PNG (DALL·E и т.п.), прописывает `representation.external_raster.path`.
-4. **`floorplan_build_pipeline`** — финальный SVG/PDF/PNG с вложенными растрами (масштаб по габариту из JSON — источник истины).
-5. **`floorplan_openai_overview_image`** — отдельный **иллюстративный** обзор целого плана (масштаб может не совпасть с вектором).
-6. **`floorplan_full_openai_pipeline`** — один вызов: шаги 1→3→4→5 с общим `output_dir` (черновик мержится внутри эксперта; отдельный вызов `floorplan_layout_draft_merge` не нужен).
+**Нормальный путь:** один вызов **`floorplan_full_openai_pipeline`** — внутри: Chat → layout/spec → (опц.) изображения узлов через **`image_model`** (по умолчанию `gpt-image-2`) → экспорт. Отдельный вызов **`floorplan_layout_draft_merge`** при этом **не** нужен.
 
-Зависимость в ExTella: `extella-pip install openai` (для экспертов с OpenAI).
+Зависимость в ExTella: `extella-pip install openai` (актуальный SDK; для `gpt-image-2` может понадобиться обновление пакета).
 
 ## CSPL
 По умолчанию **`fython`** для всех экспертов пресета. **`parallel_task`** имеет смысл только при пакетной генерации множества планов (не входит в MVP).

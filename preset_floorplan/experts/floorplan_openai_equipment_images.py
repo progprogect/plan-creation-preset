@@ -67,7 +67,7 @@ def openai_save_image(
     api_key: str,
     prompt: str,
     out_path: Path,
-    model: str = "dall-e-3",
+    model: str = "gpt-image-2",
     size: str = "1024x1024",
 ) -> None:
     from openai import OpenAI
@@ -75,14 +75,24 @@ def openai_save_image(
     client = OpenAI(api_key=api_key)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    resp = client.images.generate(
-        model=model,
-        prompt=prompt[:4000],
-        size=size,
-        quality="standard",
-        n=1,
-        response_format="b64_json",
-    )
+    m = (model or "gpt-image-2").strip().lower()
+    is_gpt_image = m.startswith("gpt-image-")
+    kwargs: Dict[str, Any] = {"model": model, "prompt": prompt, "n": 1}
+    if is_gpt_image:
+        kwargs["prompt"] = prompt[:32000]
+        if size in ("1024x1024", "1536x1024", "1024x1536", "auto"):
+            kwargs["size"] = size
+        else:
+            kwargs["size"] = "1024x1024"
+        kwargs["quality"] = "high"
+        kwargs["output_format"] = "png"
+        kwargs["background"] = "opaque"
+    else:
+        kwargs["prompt"] = prompt[:4000] if "dall-e-3" in m else prompt[:1000]
+        kwargs["size"] = size
+        kwargs["quality"] = "hd" if "dall-e-3" in m else "standard"
+        kwargs["response_format"] = "b64_json"
+    resp = client.images.generate(**kwargs)
     b64 = resp.data[0].b64_json
     if not b64:
         raise RuntimeError("images.generate: пустой b64_json")
@@ -92,7 +102,7 @@ def floorplan_openai_equipment_images(
     spec_json: str = "",
     output_dir: str = "",
     openai_api_key: str = "",
-    image_model: str = "dall-e-3",
+    image_model: str = "gpt-image-2",
     skip_existing: bool = True,
 ) -> dict:
     try:
