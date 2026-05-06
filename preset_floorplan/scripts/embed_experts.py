@@ -397,8 +397,47 @@ def floorplan_openai_overview_image(
 """,
     )
 
-    full_wrapper = '''
+    full_pipeline_entry = """
 def floorplan_full_openai_pipeline(
+    user_brief: str = "",
+    units: str = "cm",
+    openai_api_key: str = "",
+    chat_model: str = "gpt-4o-mini",
+    image_model: str = "dall-e-3",
+    outputs: str = "pdf,png,svg",
+    output_dir: str = "",
+    dpi: int = 150,
+    page_size: str = "A4",
+    orientation: str = "landscape",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+    skip_equipment_images: bool = False,
+    skip_overview: bool = False,
+    skip_existing_images: bool = True,
+) -> dict:
+    \"\"\"Точка входа fython: первая top-level def в файле (до тела floorplan_core).\"\"\"
+    return _floorplan_full_openai_pipeline_run(
+        user_brief=user_brief,
+        units=units,
+        openai_api_key=openai_api_key,
+        chat_model=chat_model,
+        image_model=image_model,
+        outputs=outputs,
+        output_dir=output_dir,
+        dpi=dpi,
+        page_size=page_size,
+        orientation=orientation,
+        render_profile=render_profile,
+        show_grid=show_grid,
+        skip_equipment_images=skip_equipment_images,
+        skip_overview=skip_overview,
+        skip_existing_images=skip_existing_images,
+    )
+
+"""
+
+    full_wrapper = '''
+def _floorplan_full_openai_pipeline_run(
     user_brief: str = "",
     units: str = "cm",
     openai_api_key: str = "",
@@ -521,7 +560,17 @@ def floorplan_full_openai_pipeline(
 
     write(
         OUT / "floorplan_full_openai_pipeline.py",
-        openai_header + "\n" + core + "\n" + merge_src + "\n" + tools_src + "\n" + full_wrapper,
+        openai_header
+        + "\n"
+        + full_pipeline_entry.strip()
+        + "\n\n"
+        + core
+        + "\n"
+        + merge_src
+        + "\n"
+        + tools_src
+        + "\n"
+        + full_wrapper,
     )
 
     print("Written experts to", OUT)

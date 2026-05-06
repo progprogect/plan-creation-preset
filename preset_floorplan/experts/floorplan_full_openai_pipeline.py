@@ -14,6 +14,42 @@ include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
 include("import openai", ["extella-pip install openai"])
 
+def floorplan_full_openai_pipeline(
+    user_brief: str = "",
+    units: str = "cm",
+    openai_api_key: str = "",
+    chat_model: str = "gpt-4o-mini",
+    image_model: str = "dall-e-3",
+    outputs: str = "pdf,png,svg",
+    output_dir: str = "",
+    dpi: int = 150,
+    page_size: str = "A4",
+    orientation: str = "landscape",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+    skip_equipment_images: bool = False,
+    skip_overview: bool = False,
+    skip_existing_images: bool = True,
+) -> dict:
+    """Точка входа fython: первая top-level def в файле (до тела floorplan_core)."""
+    return _floorplan_full_openai_pipeline_run(
+        user_brief=user_brief,
+        units=units,
+        openai_api_key=openai_api_key,
+        chat_model=chat_model,
+        image_model=image_model,
+        outputs=outputs,
+        output_dir=output_dir,
+        dpi=dpi,
+        page_size=page_size,
+        orientation=orientation,
+        render_profile=render_profile,
+        show_grid=show_grid,
+        skip_equipment_images=skip_equipment_images,
+        skip_overview=skip_overview,
+        skip_existing_images=skip_existing_images,
+    )
+
 """
 Каноническая логика пресета планов: валидация, SVG (schematic / technical_bw), PDF∕PNG.
 version 1 — схема; version 2 — equipment, annotations, техпрофиль.
@@ -1391,7 +1427,7 @@ def openai_save_image(
     out_path.write_bytes(base64.standard_b64decode(b64))
 
 
-def floorplan_full_openai_pipeline(
+def _floorplan_full_openai_pipeline_run(
     user_brief: str = "",
     units: str = "cm",
     openai_api_key: str = "",
