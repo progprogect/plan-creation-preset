@@ -1105,6 +1105,14 @@ def normalize_style_profile(spec: Dict[str, Any]) -> str:
     return p if p in ("schematic", "technical_bw") else "schematic"
 
 
+def user_output_dir(output_dir: str) -> Optional[Path]:
+    """Путь для сохранения артефактов: пусто → None (run_pipeline использует /tmp); ~ раскрывается."""
+    s = (output_dir or "").strip()
+    if not s:
+        return None
+    return Path(s).expanduser()
+
+
 def run_pipeline(
     spec: Dict[str, Any],
     outputs: List[str],
@@ -1233,7 +1241,7 @@ def floorplan_build_pipeline(
     if not outs:
         outs = ["svg"]
 
-    odir = Path(output_dir) if output_dir else None
+    odir = user_output_dir(output_dir)
     try:
         result = run_pipeline(
             spec,

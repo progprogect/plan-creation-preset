@@ -90,7 +90,7 @@ def floorplan_build_pipeline(
     if not outs:
         outs = ["svg"]
 
-    odir = Path(output_dir) if output_dir else None
+    odir = user_output_dir(output_dir)
     try:
         result = run_pipeline(
             spec,
@@ -172,7 +172,7 @@ def floorplan_render_svg(spec_json: str = "", output_dir: str = "") -> dict:
     try:
         normalized, warnings = validate_and_normalize(spec)
         svg = spec_to_svg(normalized)
-        out = Path(output_dir) if output_dir else Path("/tmp")
+        out = user_output_dir(output_dir) or Path("/tmp")
         out.mkdir(parents=True, exist_ok=True)
         stem = f"floorplan_svg_{uuid.uuid4().hex[:8]}"
         path = out / f"{stem}.svg"
@@ -240,11 +240,49 @@ def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 1
     tools_src = load_py(TOOLS_PATH)
     openai_header = HEADER + OPENAI_INCLUDE
 
+    merge_entry_shim = """
+def floorplan_layout_draft_merge(
+    layout_draft_json: str = "",
+    title: str = "",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+) -> dict:
+    \"\"\"fython: первая top-level def в файле (до merge_layout_draft_to_spec).\"\"\"
+    return _floorplan_layout_draft_merge_run(
+        layout_draft_json=layout_draft_json,
+        title=title,
+        render_profile=render_profile,
+        show_grid=show_grid,
+    )
+
+"""
+
+    openai_layout_entry_shim = """
+def floorplan_openai_layout(
+    user_brief: str = "",
+    units: str = "cm",
+    openai_api_key: str = "",
+    model: str = "gpt-4o-mini",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+) -> dict:
+    \"\"\"fython: первая top-level def (до merge_layout_draft_to_spec).\"\"\"
+    return _floorplan_openai_layout_run(
+        user_brief=user_brief,
+        units=units,
+        openai_api_key=openai_api_key,
+        model=model,
+        render_profile=render_profile,
+        show_grid=show_grid,
+    )
+
+"""
+
     write(
         OUT / "floorplan_layout_draft_merge.py",
-        MERGE_HEADER + "\n" + merge_src
+        MERGE_HEADER + "\n" + merge_entry_shim.strip() + "\n\n" + merge_src
         + """
-def floorplan_layout_draft_merge(
+def _floorplan_layout_draft_merge_run(
     layout_draft_json: str = "",
     title: str = "",
     render_profile: str = "technical_bw",
@@ -273,9 +311,9 @@ def floorplan_layout_draft_merge(
 
     write(
         OUT / "floorplan_openai_layout.py",
-        openai_header + "\n" + merge_src + "\n" + tools_src
+        openai_header + "\n" + openai_layout_entry_shim.strip() + "\n\n" + merge_src + "\n" + tools_src
         + """
-def floorplan_openai_layout(
+def _floorplan_openai_layout_run(
     user_brief: str = "",
     units: str = "cm",
     openai_api_key: str = "",
@@ -330,7 +368,7 @@ def floorplan_openai_equipment_images(
         return {"status": "error", "message": f"invalid_json: {e}", "spec_json": "", "paths": []}
     if spec.get("version") != 2:
         return {"status": "error", "message": "requires_version_2", "spec_json": "", "paths": []}
-    odir = Path(output_dir) if output_dir else Path("/tmp")
+    odir = output_dir_path(output_dir)
     odir.mkdir(parents=True, exist_ok=True)
     try:
         key = resolve_openai_key(openai_api_key)
@@ -380,7 +418,7 @@ def floorplan_openai_overview_image(
 ) -> dict:
     if not (summary_text or "").strip():
         return {"status": "error", "message": "summary_text_required", "png_path": None}
-    odir = Path(output_dir) if output_dir else Path("/tmp")
+    odir = output_dir_path(output_dir)
     odir.mkdir(parents=True, exist_ok=True)
     out = odir / f"floorplan_overview_{uuid.uuid4().hex[:8]}.png"
     try:
@@ -461,7 +499,7 @@ def _floorplan_full_openai_pipeline_run(
     overview_path: Optional[str] = None
     try:
         key = resolve_openai_key(openai_api_key)
-        odir = Path(output_dir) if output_dir else Path("/tmp")
+        odir = user_output_dir(output_dir) or Path("/tmp")
         odir.mkdir(parents=True, exist_ok=True)
         if not (user_brief or "").strip():
             raise ValueError("user_brief_required")

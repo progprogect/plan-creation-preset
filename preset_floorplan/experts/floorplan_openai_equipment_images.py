@@ -24,6 +24,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+def output_dir_path(output_dir: str) -> Path:
+    """Каталог для PNG и пр.: пусто → /tmp; пути с ~ раскрываются (Extella Desktop)."""
+    s = (output_dir or "").strip()
+    if not s:
+        return Path("/tmp")
+    return Path(s).expanduser()
+
+
 def resolve_openai_key(explicit: str = "") -> str:
     k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     if not k:
@@ -93,7 +101,7 @@ def floorplan_openai_equipment_images(
         return {"status": "error", "message": f"invalid_json: {e}", "spec_json": "", "paths": []}
     if spec.get("version") != 2:
         return {"status": "error", "message": "requires_version_2", "spec_json": "", "paths": []}
-    odir = Path(output_dir) if output_dir else Path("/tmp")
+    odir = output_dir_path(output_dir)
     odir.mkdir(parents=True, exist_ok=True)
     try:
         key = resolve_openai_key(openai_api_key)

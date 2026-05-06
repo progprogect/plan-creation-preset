@@ -1141,6 +1141,14 @@ def normalize_style_profile(spec: Dict[str, Any]) -> str:
     return p if p in ("schematic", "technical_bw") else "schematic"
 
 
+def user_output_dir(output_dir: str) -> Optional[Path]:
+    """Путь для сохранения артефактов: пусто → None (run_pipeline использует /tmp); ~ раскрывается."""
+    s = (output_dir or "").strip()
+    if not s:
+        return None
+    return Path(s).expanduser()
+
+
 def run_pipeline(
     spec: Dict[str, Any],
     outputs: List[str],
@@ -1370,6 +1378,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+def output_dir_path(output_dir: str) -> Path:
+    """Каталог для PNG и пр.: пусто → /tmp; пути с ~ раскрываются (Extella Desktop)."""
+    s = (output_dir or "").strip()
+    if not s:
+        return Path("/tmp")
+    return Path(s).expanduser()
+
+
 def resolve_openai_key(explicit: str = "") -> str:
     k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     if not k:
@@ -1451,7 +1467,7 @@ def _floorplan_full_openai_pipeline_run(
     overview_path: Optional[str] = None
     try:
         key = resolve_openai_key(openai_api_key)
-        odir = Path(output_dir) if output_dir else Path("/tmp")
+        odir = user_output_dir(output_dir) or Path("/tmp")
         odir.mkdir(parents=True, exist_ok=True)
         if not (user_brief or "").strip():
             raise ValueError("user_brief_required")

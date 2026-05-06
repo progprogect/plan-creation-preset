@@ -14,6 +14,24 @@ include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
 include("import openai", ["extella-pip install openai"])
 
+def floorplan_openai_layout(
+    user_brief: str = "",
+    units: str = "cm",
+    openai_api_key: str = "",
+    model: str = "gpt-4o-mini",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+) -> dict:
+    """fython: первая top-level def (до merge_layout_draft_to_spec)."""
+    return _floorplan_openai_layout_run(
+        user_brief=user_brief,
+        units=units,
+        openai_api_key=openai_api_key,
+        model=model,
+        render_profile=render_profile,
+        show_grid=show_grid,
+    )
+
 """
 Черновик раскладки (layout_draft) → канонический floorplan_spec v2.
 Без сетевых вызовов; используется экспертом merge и OpenAI layout.
@@ -140,6 +158,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+def output_dir_path(output_dir: str) -> Path:
+    """Каталог для PNG и пр.: пусто → /tmp; пути с ~ раскрываются (Extella Desktop)."""
+    s = (output_dir or "").strip()
+    if not s:
+        return Path("/tmp")
+    return Path(s).expanduser()
+
+
 def resolve_openai_key(explicit: str = "") -> str:
     k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     if not k:
@@ -196,7 +222,7 @@ def openai_save_image(
         raise RuntimeError("images.generate: пустой b64_json")
     out_path.write_bytes(base64.standard_b64decode(b64))
 
-def floorplan_openai_layout(
+def _floorplan_openai_layout_run(
     user_brief: str = "",
     units: str = "cm",
     openai_api_key: str = "",

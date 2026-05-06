@@ -24,6 +24,14 @@ from pathlib import Path
 from typing import Any, Dict
 
 
+def output_dir_path(output_dir: str) -> Path:
+    """Каталог для PNG и пр.: пусто → /tmp; пути с ~ раскрываются (Extella Desktop)."""
+    s = (output_dir or "").strip()
+    if not s:
+        return Path("/tmp")
+    return Path(s).expanduser()
+
+
 def resolve_openai_key(explicit: str = "") -> str:
     k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     if not k:
@@ -88,7 +96,7 @@ def floorplan_openai_overview_image(
 ) -> dict:
     if not (summary_text or "").strip():
         return {"status": "error", "message": "summary_text_required", "png_path": None}
-    odir = Path(output_dir) if output_dir else Path("/tmp")
+    odir = output_dir_path(output_dir)
     odir.mkdir(parents=True, exist_ok=True)
     out = odir / f"floorplan_overview_{uuid.uuid4().hex[:8]}.png"
     try:

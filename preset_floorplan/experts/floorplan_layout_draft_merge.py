@@ -3,6 +3,20 @@ include("import json", [])
 include("from pathlib import Path", [])
 include("from typing import Any, Dict, List", [])
 
+def floorplan_layout_draft_merge(
+    layout_draft_json: str = "",
+    title: str = "",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+) -> dict:
+    """fython: первая top-level def в файле (до merge_layout_draft_to_spec)."""
+    return _floorplan_layout_draft_merge_run(
+        layout_draft_json=layout_draft_json,
+        title=title,
+        render_profile=render_profile,
+        show_grid=show_grid,
+    )
+
 """
 Черновик раскладки (layout_draft) → канонический floorplan_spec v2.
 Без сетевых вызовов; используется экспертом merge и OpenAI layout.
@@ -119,7 +133,7 @@ LAYOUT_JSON_INSTRUCTIONS = """Верни один JSON-объект (без mark
 }
 Координаты в одних units; полигоны комнат простые без самопересечений; оборудование внутри контура зала."""
 
-def floorplan_layout_draft_merge(
+def _floorplan_layout_draft_merge_run(
     layout_draft_json: str = "",
     title: str = "",
     render_profile: str = "technical_bw",
