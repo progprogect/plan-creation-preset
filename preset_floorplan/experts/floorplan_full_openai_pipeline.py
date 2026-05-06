@@ -19,7 +19,7 @@ def floorplan_full_openai_pipeline(
     units: str = "cm",
     openai_api_key: str = "",
     chat_model: str = "gpt-4o-mini",
-    image_model: str = "gpt-image-2",
+    image_model: str = "gpt-image-1.5",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",
     dpi: int = 150,
@@ -1443,6 +1443,30 @@ def build_full_floorplan_openai_prompt(spec: Dict[str, Any]) -> str:
     return "\n".join(lines)[:31000]
 
 
+def coerce_image_size(model: str, size: str) -> str:
+    """
+    Размеры зависят от модели: DALL·E 3 не принимает 1536×1024 (только GPT Image).
+    См. https://developers.openai.com/api/docs/guides/images
+    """
+    m = (model or "").strip().lower()
+    s = (size or "1024x1024").strip()
+    if m.startswith("gpt-image-"):
+        if s in ("1024x1024", "1536x1024", "1024x1536", "auto"):
+            return s
+        return "1024x1024"
+    if "dall-e-3" in m:
+        if s in ("1024x1024", "1792x1024", "1024x1792"):
+            return s
+        if s in ("1536x1024", "1024x1536"):
+            return "1792x1024" if "1536" in s else "1024x1792"
+        return "1024x1024"
+    if "dall-e-2" in m:
+        if s in ("256x256", "512x512", "1024x1024"):
+            return s
+        return "1024x1024"
+    return s or "1024x1024"
+
+
 def resolve_openai_key(explicit: str = "") -> str:
     k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
     if not k:
@@ -1478,7 +1502,7 @@ def openai_save_image(
     api_key: str,
     prompt: str,
     out_path: Path,
-    model: str = "gpt-image-2",
+    model: str = "gpt-image-1.5",
     size: str = "1024x1024",
 ) -> None:
     from openai import OpenAI
@@ -1486,7 +1510,8 @@ def openai_save_image(
     client = OpenAI(api_key=api_key)
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    m = (model or "gpt-image-2").strip().lower()
+    m = (model or "gpt-image-1.5").strip().lower()
+    size = coerce_image_size(model, size)
     is_gpt_image = m.startswith("gpt-image-")
     kwargs: Dict[str, Any] = {"model": model, "prompt": prompt, "n": 1}
     if is_gpt_image:
@@ -1515,7 +1540,7 @@ def _floorplan_full_openai_pipeline_run(
     units: str = "cm",
     openai_api_key: str = "",
     chat_model: str = "gpt-4o-mini",
-    image_model: str = "gpt-image-2",
+    image_model: str = "gpt-image-1.5",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",
     dpi: int = 150,

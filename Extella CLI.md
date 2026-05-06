@@ -569,10 +569,12 @@ curl -X POST https://api.extella.ai/api/task/check \
 | OpenAI / KV не работает из облачного агента | Значения KV с **`$enc:`** требуют контекста устройства / PIN | Передавайте ключ в **`openai_api_key`**, или запускайте эксперт с **`target`** (локальное устройство Extella Desktop), или разблокируйте KV |
 | Нет PDF с вектором, только fallback PNG | Нет **Cairo/CairoSVG** на воркере | Ожидаемо на части сред; **SVG** в выводе обычно есть; для PDF — окружение с Cairo или локальный target |
 | Агент запускает подряд **`floorplan_openai_layout`** и **`floorplan_full_openai_pipeline`** | В концепте раньше выглядело как «список шагов» | Для текста ТЗ — **только** `floorplan_full_openai_pipeline`; layout отдельно — только для явной пошаговой отладки |
-| Плохие / странные картинки узлов | Старая модель **DALL·E 3** или короткий промпт | В пресете по умолчанию **`gpt-image-2`** (GPT Image 2, OpenAI, 2026). Это **не** GPT‑2 (текст). Резерв: параметр **`image_model`** = `dall-e-3` |
-| Итоговый PNG «рвётся» / не совпадает с ожиданием | PNG строился **растром SVG** (Cairo/matplotlib + вложенные растры) | В **`floorplan_full_openai_pipeline`** по умолчанию **`final_png_from_openai: true`** — **`paths.png`** из **OpenAI Images**; геометрия в **`paths.svg`**. Отключить: **`final_png_from_openai: false`** |
+| Плохие / странные картинки узлов | Только **DALL·E 3** или короткий промпт | По умолчанию **`gpt-image-1.5`**; **`gpt-image-2`** — при прошедшей верификации org. Резерв **`dall-e-3`**. Не путать с **GPT‑2** (текст) |
+| **`gpt-image-2` → HTTP 403** | Ключ/организация без доступа к новейшей модели | Верификация на [platform.openai.com](https://platform.openai.com/settings/organization/general) или **`image_model`: `gpt-image-1.5`** ([документация](https://developers.openai.com/api/docs/models/gpt-image-1.5)) |
+| DALL·E 3 ругается на **size** | Для **dall-e-3** допустимы только **1024×1024**, **1792×1024**, **1024×1792** | Пресет подставляет **1792×1024**, если запрошен ландшафтный 1536×1024 |
+| Итоговый PNG «рвётся» | Растр из SVG (Cairo + вложенные PNG) | **`final_png_from_openai: true`** — **`paths.png`** из OpenAI; **`paths.svg`** — геометрия. **`false`** — снова PNG из вектора |
 
-Документация OpenAI по модели: [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).
+Документация: [GPT Image 1.5](https://developers.openai.com/api/docs/models/gpt-image-1.5), [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).
 
 Публикация пресета в Extella: переменная **`EXTELLA_API_TOKEN`** (то же значение, что и **`EXTELLA_TOKEN`** в примерах выше), скрипт `preset_floorplan/scripts/bootstrap_api.py`.
 
