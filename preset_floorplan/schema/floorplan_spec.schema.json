@@ -8,20 +8,14 @@
   "properties": {
     "version": {
       "type": "integer",
-      "const": 1
+      "enum": [1, 2]
     },
     "units": {
       "type": "string",
       "enum": ["mm", "cm", "m"]
     },
-    "title": {
-      "type": "string",
-      "default": "Floor plan"
-    },
-    "metadata": {
-      "type": "object",
-      "additionalProperties": true
-    },
+    "title": { "type": "string", "default": "Floor plan" },
+    "metadata": { "type": "object", "additionalProperties": true },
     "rooms": {
       "type": "array",
       "minItems": 1,
@@ -32,6 +26,10 @@
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
+          "zone_type": {
+            "type": "string",
+            "enum": ["production", "storage", "other"]
+          },
           "polygon": {
             "type": "array",
             "minItems": 3,
@@ -63,21 +61,100 @@
     },
     "openings": {
       "type": "array",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "equipment": {
+      "type": "array",
+      "description": "Оборудование: для version 2",
       "items": {
         "type": "object",
-        "additionalProperties": true
+        "required": ["id", "label"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "z_index": { "type": "number" },
+          "footprint_only": { "type": "boolean" },
+          "bbox": {
+            "type": "object",
+            "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" },
+              "width": { "type": "number", "minimum": 0 },
+              "height": { "type": "number", "minimum": 0 },
+              "rotation": { "type": "number" }
+            }
+          },
+          "polygon": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          },
+          "representation": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "annotations": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "callouts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "text"],
+            "additionalProperties": true,
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "target_id": { "type": "string" },
+              "anchor": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" }
+                }
+              },
+              "offset": {
+                "type": "object",
+                "properties": {
+                  "dx": { "type": "number" },
+                  "dy": { "type": "number" }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "style": {
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "render_profile": {
+          "type": "string",
+          "enum": ["schematic", "technical_bw"]
+        },
         "wall_stroke_mm": { "type": "number" },
         "grid_step": { "type": "number" },
         "show_grid": { "type": "boolean" },
+        "show_coord_grid": { "type": "boolean" },
         "room_palette": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "technical": {
+          "type": "object",
+          "additionalProperties": true
         }
       }
     }

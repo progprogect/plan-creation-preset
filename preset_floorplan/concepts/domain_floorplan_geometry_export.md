@@ -6,8 +6,15 @@
 - Единицы `units` не конвертируются в MVP между разными полями — все координаты в одних и тех же пользовательских единицах.
 
 ## Рендер
-- Промежуточный артефакт — **SVG** (svgwrite): предсказуемый `viewBox`, отступы, подписи комнат в центроиде Shapely, лёгкая заливка по палитре.
-- Сетка: опционально `style.show_grid` и `style.grid_step`.
+- **`schematic`** (по умолчанию): цветные заливки комнат, палитра, сетка по `show_grid`.
+- **`technical_bw`**: ч/б линии, штриховка зон `storage`, сетка и при `show_coord_grid` — подписи осей, оборудование через `library_key` / `parametric_symbol` / `external_svg`, выноски `annotations.callouts`.
+- Артефакт — **SVG** (svgwrite), затем при необходимости PDF/PNG.
+
+## Библиотечные ключи (library_key)
+`conveyor_linear`, `robot_cell`, `tank`, `workstation`, `pallet_conveyor`, `packing_block`, `stretch_wrapper`, `generic` (fallback).
+
+## Параметрический слой
+Примитивы: `line`, `rect`, `circle`, `polyline`, `hatch_rect`; не более **300** на единицу оборудования.
 
 ## Экспорт PDF/PNG
 - Предпочтительно: **CairoSVG** (`svg2pdf`, `svg2png`) для соответствия вектор ↔ растр.

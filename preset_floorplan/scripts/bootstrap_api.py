@@ -124,7 +124,8 @@ def main() -> None:
             "name": "floorplan_build_pipeline",
             "description": (
                 "Floor plan preset: validate JSON spec, render SVG, export PDF/PNG. "
-                "Parameters: spec_json (string JSON per schema preset_floorplan/schema/floorplan_spec.schema.json); "
+                "spec_json: version 1 (schematic) or 2 (equipment, technical_bw, callouts) per "
+                "preset_floorplan/schema/floorplan_spec.schema.json; "
                 "outputs — comma-separated pdf,png,svg; output_dir (optional); dpi (int); "
                 "page_size (A4); orientation (landscape|portrait). "
                 "Returns paths, bounding_box, normalized_spec, warnings, errors."
