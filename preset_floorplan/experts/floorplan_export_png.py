@@ -13,6 +13,9 @@ include("import svgwrite", ["extella-pip install svgwrite"])
 include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
 
+def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
+    """fython: первая top-level def до тела floorplan_core."""
+    return _floorplan_export_png_run(svg_path=svg_path, output_path=output_path, dpi=dpi)
 
 """
 Каноническая логика пресета планов: валидация, SVG (schematic / technical_bw), PDF∕PNG.
@@ -1216,7 +1219,7 @@ def strip_geom(normalized: Dict[str, Any]) -> Dict[str, Any]:
     out["equipment"] = eqs
     return out
 
-def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
+def _floorplan_export_png_run(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
     if not svg_path:
         return {"status": "error", "message": "svg_path_required", "png_path": None}
     p_in = Path(svg_path)

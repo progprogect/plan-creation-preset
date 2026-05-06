@@ -13,6 +13,9 @@ include("import svgwrite", ["extella-pip install svgwrite"])
 include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
 
+def floorplan_spec_validate(spec_json: str = "") -> dict:
+    """fython: первая top-level def до тела floorplan_core."""
+    return _floorplan_spec_validate_run(spec_json=spec_json)
 
 """
 Каноническая логика пресета планов: валидация, SVG (schematic / technical_bw), PDF∕PNG.
@@ -1216,7 +1219,7 @@ def strip_geom(normalized: Dict[str, Any]) -> Dict[str, Any]:
     out["equipment"] = eqs
     return out
 
-def floorplan_spec_validate(spec_json: str = "") -> dict:
+def _floorplan_spec_validate_run(spec_json: str = "") -> dict:
     try:
         spec = json.loads(spec_json) if spec_json else {}
     except json.JSONDecodeError as e:

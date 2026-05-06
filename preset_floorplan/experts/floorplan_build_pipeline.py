@@ -13,6 +13,23 @@ include("import svgwrite", ["extella-pip install svgwrite"])
 include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
 
+def floorplan_build_pipeline(
+    spec_json: str = "",
+    outputs: str = "pdf,png,svg",
+    output_dir: str = "",
+    dpi: int = 150,
+    page_size: str = "A4",
+    orientation: str = "landscape",
+) -> dict:
+    """fython: первая top-level def до тела floorplan_core."""
+    return _floorplan_build_pipeline_run(
+        spec_json=spec_json,
+        outputs=outputs,
+        output_dir=output_dir,
+        dpi=dpi,
+        page_size=page_size,
+        orientation=orientation,
+    )
 
 """
 Каноническая логика пресета планов: валидация, SVG (schematic / technical_bw), PDF∕PNG.
@@ -1216,7 +1233,7 @@ def strip_geom(normalized: Dict[str, Any]) -> Dict[str, Any]:
     out["equipment"] = eqs
     return out
 
-def floorplan_build_pipeline(
+def _floorplan_build_pipeline_run(
     spec_json: str = "",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",

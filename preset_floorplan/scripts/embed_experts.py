@@ -59,13 +59,33 @@ def write(path: Path, body: str) -> None:
 
 def main() -> None:
     core = load_core_source()
-    base = HEADER + "\n\n" + core
+
+    build_shim = """
+def floorplan_build_pipeline(
+    spec_json: str = "",
+    outputs: str = "pdf,png,svg",
+    output_dir: str = "",
+    dpi: int = 150,
+    page_size: str = "A4",
+    orientation: str = "landscape",
+) -> dict:
+    \"\"\"fython: первая top-level def до тела floorplan_core.\"\"\"
+    return _floorplan_build_pipeline_run(
+        spec_json=spec_json,
+        outputs=outputs,
+        output_dir=output_dir,
+        dpi=dpi,
+        page_size=page_size,
+        orientation=orientation,
+    )
+
+"""
 
     write(
         OUT / "floorplan_build_pipeline.py",
-        base
+        HEADER + "\n" + build_shim.strip() + "\n\n" + core
         + """
-def floorplan_build_pipeline(
+def _floorplan_build_pipeline_run(
     spec_json: str = "",
     outputs: str = "pdf,png,svg",
     output_dir: str = "",
@@ -124,11 +144,18 @@ def floorplan_build_pipeline(
 """,
     )
 
+    validate_shim = """
+def floorplan_spec_validate(spec_json: str = "") -> dict:
+    \"\"\"fython: первая top-level def до тела floorplan_core.\"\"\"
+    return _floorplan_spec_validate_run(spec_json=spec_json)
+
+"""
+
     write(
         OUT / "floorplan_spec_validate.py",
-        base
+        HEADER + "\n" + validate_shim.strip() + "\n\n" + core
         + """
-def floorplan_spec_validate(spec_json: str = "") -> dict:
+def _floorplan_spec_validate_run(spec_json: str = "") -> dict:
     try:
         spec = json.loads(spec_json) if spec_json else {}
     except json.JSONDecodeError as e:
@@ -160,11 +187,18 @@ def floorplan_spec_validate(spec_json: str = "") -> dict:
 """,
     )
 
+    render_shim = """
+def floorplan_render_svg(spec_json: str = "", output_dir: str = "") -> dict:
+    \"\"\"fython: первая top-level def до тела floorplan_core.\"\"\"
+    return _floorplan_render_svg_run(spec_json=spec_json, output_dir=output_dir)
+
+"""
+
     write(
         OUT / "floorplan_render_svg.py",
-        base
+        HEADER + "\n" + render_shim.strip() + "\n\n" + core
         + """
-def floorplan_render_svg(spec_json: str = "", output_dir: str = "") -> dict:
+def _floorplan_render_svg_run(spec_json: str = "", output_dir: str = "") -> dict:
     try:
         spec = json.loads(spec_json) if spec_json else {}
     except json.JSONDecodeError as e:
@@ -190,11 +224,18 @@ def floorplan_render_svg(spec_json: str = "", output_dir: str = "") -> dict:
 """,
     )
 
+    pdf_shim = """
+def floorplan_export_pdf(svg_path: str = "", output_path: str = "") -> dict:
+    \"\"\"fython: первая top-level def до тела floorplan_core.\"\"\"
+    return _floorplan_export_pdf_run(svg_path=svg_path, output_path=output_path)
+
+"""
+
     write(
         OUT / "floorplan_export_pdf.py",
-        base
+        HEADER + "\n" + pdf_shim.strip() + "\n\n" + core
         + """
-def floorplan_export_pdf(svg_path: str = "", output_path: str = "") -> dict:
+def _floorplan_export_pdf_run(svg_path: str = "", output_path: str = "") -> dict:
     if not svg_path:
         return {"status": "error", "message": "svg_path_required", "pdf_path": None}
     p_in = Path(svg_path)
@@ -213,11 +254,18 @@ def floorplan_export_pdf(svg_path: str = "", output_path: str = "") -> dict:
 """,
     )
 
+    png_shim = """
+def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
+    \"\"\"fython: первая top-level def до тела floorplan_core.\"\"\"
+    return _floorplan_export_png_run(svg_path=svg_path, output_path=output_path, dpi=dpi)
+
+"""
+
     write(
         OUT / "floorplan_export_png.py",
-        base
+        HEADER + "\n" + png_shim.strip() + "\n\n" + core
         + """
-def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
+def _floorplan_export_png_run(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
     if not svg_path:
         return {"status": "error", "message": "svg_path_required", "png_path": None}
     p_in = Path(svg_path)
