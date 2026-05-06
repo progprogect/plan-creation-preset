@@ -9,19 +9,29 @@
   export EXTELLA_AGENT_ID=...
 
   python scripts/bootstrap_api.py
+  python scripts/bootstrap_api.py --delete-experts
+  python scripts/bootstrap_api.py --master-concept-id 97285 --domain-concept-id 97286
 
-Для save/add в заголовках требуются X-Profile-Id и X-Agent-Id; скрипт
+--delete-experts — перед save выполнить DELETE /api/expert/delete/<name> для каждого эксперта пресета
+  (если в UI остаётся старое поведение после save).
+
+--master-concept-id / --domain-concept-id — POST /api/concept/update вместо concept/add, чтобы не
+  плодить дубликаты и не менять id в настройках агента.
+
+Для save/add/update/delete в заголовках требуются X-Profile-Id и X-Agent-Id; скрипт
 подставляет их из /api/token/validate, если не заданы в окружении.
 
-Только POST; не логирует токен.
+Не логирует токен.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -105,12 +115,70 @@ def save_expert(
     print("save_expert", name, out.get("status"), out.get("expert_name"))
 
 
-def add_concept(token: str, profile_id: str, agent_id: str, text: str) -> None:
+def add_concept(token: str, profile_id: str, agent_id: str, text: str) -> dict:
     out = req("POST", "/api/concept/add", token, {"text": text}, profile_id=profile_id, agent_id=agent_id)
     print("concept_add", out.get("id"), out.get("status"))
+    return out
+
+
+def update_concept(token: str, profile_id: str, agent_id: str, concept_id: int, text: str) -> dict:
+    out = req(
+        "POST",
+        "/api/concept/update",
+        token,
+        {"concept_id": concept_id, "new_text": text},
+        profile_id=profile_id,
+        agent_id=agent_id,
+    )
+    print("concept_update", concept_id, out.get("status"))
+    return out
+
+
+def delete_expert_by_name(token: str, profile_id: str, agent_id: str, name: str) -> dict:
+    path = "/api/expert/delete/" + urllib.parse.quote(name, safe="")
+    url = BASE + path
+    headers = {
+        "X-Auth-Token": token,
+        "X-Profile-Id": profile_id,
+        "X-Agent-Id": agent_id,
+    }
+    r = urllib.request.Request(url, headers=headers, method="DELETE")
+    try:
+        with urllib.request.urlopen(r, timeout=120) as resp:
+            body = resp.read().decode("utf-8")
+            if not body.strip():
+                out = {"status": "success", "raw": "(empty)"}
+            else:
+                out = json.loads(body)
+            print("delete_expert", name, out.get("status", out))
+            return out
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")
+        print("delete_expert", name, "HTTP", e.code, err[:200], file=sys.stderr)
+        return {"status": "error", "code": e.code, "message": err}
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Публикация floorplan пресета в Extella")
+    parser.add_argument(
+        "--delete-experts",
+        action="store_true",
+        help="Удалить эксперты пресета по имени перед save (см. Extella DELETE /api/expert/delete/<name>)",
+    )
+    parser.add_argument(
+        "--master-concept-id",
+        type=int,
+        default=0,
+        help="Если > 0 — обновить этот концепт (POST /api/concept/update) вместо add для мастера",
+    )
+    parser.add_argument(
+        "--domain-concept-id",
+        type=int,
+        default=0,
+        help="Если > 0 — обновить этот концепт для domain_floorplan_geometry_export.md",
+    )
+    args = parser.parse_args()
+
     token = os.environ.get("EXTELLA_API_TOKEN") or os.environ.get("EXTELLA_AUTH_TOKEN")
     if not token:
         print("Задайте EXTELLA_API_TOKEN в окружении.", file=sys.stderr)
@@ -252,13 +320,24 @@ def main() -> None:
         },
     ]
 
+    if args.delete_experts:
+        for s in specs:
+            delete_expert_by_name(token, profile_id, agent_id, s["name"])
+
     for s in specs:
         code = s["file"].read_text(encoding="utf-8")
         save_expert(token, profile_id, agent_id, s["name"], s["description"], code, s["kwargs"])
 
-    for md_name in ("master_preset_floorplan.md", "domain_floorplan_geometry_export.md"):
-        text = (ROOT / "concepts" / md_name).read_text(encoding="utf-8")
-        add_concept(token, profile_id, agent_id, text)
+    master_text = (ROOT / "concepts" / "master_preset_floorplan.md").read_text(encoding="utf-8")
+    domain_text = (ROOT / "concepts" / "domain_floorplan_geometry_export.md").read_text(encoding="utf-8")
+    if args.master_concept_id > 0:
+        update_concept(token, profile_id, agent_id, args.master_concept_id, master_text)
+    else:
+        add_concept(token, profile_id, agent_id, master_text)
+    if args.domain_concept_id > 0:
+        update_concept(token, profile_id, agent_id, args.domain_concept_id, domain_text)
+    else:
+        add_concept(token, profile_id, agent_id, domain_text)
 
 
 if __name__ == "__main__":

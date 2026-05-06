@@ -35,10 +35,27 @@
 3. **`floorplan_openai_equipment_images`** — для каждого `equipment` генерирует PNG (DALL·E и т.п.), прописывает `representation.external_raster.path`.
 4. **`floorplan_build_pipeline`** — финальный SVG/PDF/PNG с вложенными растрами (масштаб по габариту из JSON — источник истины).
 5. **`floorplan_openai_overview_image`** — отдельный **иллюстративный** обзор целого плана (масштаб может не совпасть с вектором).
-6. **`floorplan_full_openai_pipeline`** — один вызов: шаги 1→3→4→5 с общим `output_dir`.
+6. **`floorplan_full_openai_pipeline`** — один вызов: шаги 1→3→4→5 с общим `output_dir` (черновик мержится внутри эксперта; отдельный вызов `floorplan_layout_draft_merge` не нужен).
 
-Зависимость в ExTella: `extella-pip install openai`.
+Зависимость в ExTella: `extella-pip install openai` (для экспертов с OpenAI).
+
+## CSPL
 По умолчанию **`fython`** для всех экспертов пресета. **`parallel_task`** имеет смысл только при пакетной генерации множества планов (не входит в MVP).
+
+## Почему в UI «ничего не изменилось»
+- **Концепт:** `POST /api/concept/add` каждый раз создаёт **новую** запись с **новым id**. Если агент привязан к **старому** id концепта, он продолжит видеть старый текст. Обновить текст **на месте**: `POST /api/concept/update` с тем же `concept_id` (в репозитории: `bootstrap_api.py --master-concept-id <id>`).
+- **Эксперты:** `save` должен перезаписывать код по **имени**. Если подозрение на кэш/рассинхрон, перед сохранением выполнить `DELETE /api/expert/delete/<name>` (`bootstrap_api.py --delete-experts`).
+- **Агент:** проверить, что у агента в профиле подключены эксперты с теми же **именами**, что в пресете (`floorplan_build_pipeline`, …).
+
+## Публикация в Extella (репозиторий)
+```text
+python preset_floorplan/scripts/embed_experts.py
+EXTELLA_API_TOKEN=… python preset_floorplan/scripts/bootstrap_api.py \\
+  --delete-experts \\
+  --master-concept-id <ваш_id_мастера> \\
+  --domain-concept-id <ваш_id_домена>
+```
+Без id концептов скрипт сделает **add** (новые id). С id — **update** (текст заменится у существующих записей).
 
 ## Каноническая модель (кратко)
 - `version`: **1** (схема) или **2** (+ `equipment`, `annotations`; при v1 эти поля игнорируются с предупреждением).
@@ -62,7 +79,7 @@
 - Схема: `preset_floorplan/schema/floorplan_spec.schema.json`
 - Реализация: `preset_floorplan/python/floorplan_core.py`
 - Готовые тела экспертов: `preset_floorplan/experts/*.py` (пересобрать после правок ядра: `python preset_floorplan/scripts/embed_experts.py`).
-- Публикация в аккаунт Extella: `python preset_floorplan/scripts/bootstrap_api.py` при установленном `EXTELLA_API_TOKEN`.
+- Публикация в аккаунт Extella: см. раздел «Публикация в Extella» выше (`bootstrap_api.py`, при необходимости `--delete-experts` и `--master-concept-id`).
 - Примеры: `preset_floorplan/examples/*.json`
 
 ## Параметры `floorplan_build_pipeline`
