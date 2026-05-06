@@ -12,7 +12,7 @@
 4. **Заголовок плана** (`title`) и **список помещений**: для каждого — имя (`name`), ориентировочная форма (прямоугольник, L-образ, несколько прямоугольников) и **размеры или вершины** в выбранных единицах; либо пользователь даёт **готовый JSON** по схеме.
 5. **Сетка** на плане: нужна ли (`show_grid`), при необходимости **шаг** `grid_step`; для техрежима — подписи осей (`show_coord_grid`).
 6. **Режим чертежа**: схема цветных блоков (`style.render_profile: schematic`, **version 1**) или **инженерно-графический ч/б** (`technical_bw`, желательно **version 2**).
-7. Для **technical_bw / v2**: список **оборудования** — для каждого: `id`, подпись, габарит `bbox` (x, y, width, height, rotation) или `polygon`; способ детализации: **`library_key`** (например `conveyor_linear`, `robot_cell`, `packing_block`, …), или **`parametric_symbol`** (примитивы `line|rect|circle|polyline|hatch_rect` в локальных координатах габарита), или **`external_svg`** (путь к файлу / XML-фрагмент).
+7. Для **technical_bw / v2**: список **оборудования** — для каждого: `id`, подпись, габарит `bbox` (x, y, width, height, rotation) или `polygon`; способ детализации: **`library_key`** (например `conveyor_linear`, `robot_cell`, `packing_block`, …), или **`parametric_symbol`** (примитивы `line|rect|circle|polyline|hatch_rect` в локальных координатах габарита), или **`external_svg`** (путь к файлу / XML-фрагмент), или **`external_raster`** (PNG: `path` или `data_uri` для вставки в SVG).
 8. Нумерованные **выноски** (`annotations.callouts`): id, текст, привязка `target_id` к `equipment.id` или точка `anchor`, смещение `offset`.
 9. Тип зоны помещения `zone_type`: `production` | `storage` | `other` (у **storage** в technical_bw — штриховка).
 10. Дополнительно: отдельные **стены** (`walls`).
@@ -24,7 +24,20 @@
 2. Рекомендуемый единый вызов: эксперт **`floorplan_build_pipeline`** — валидация → SVG → при необходимости PDF/PNG.
 3. Атомарные эксперты (опционально): `floorplan_spec_validate`, `floorplan_render_svg`, `floorplan_export_pdf`, `floorplan_export_png` — для отладки или частичного конвейера.
 
-## CSPL
+## Многошаговый пайплайн с OpenAI (опционально)
+Ключ **OpenAI** не вставлять в текст концепта: только **KV Store** (`OPENAI_API_KEY`) или параметр `openai_api_key` у эксперта.
+
+**Схема черновика раскладки:** `preset_floorplan/schema/layout_draft.schema.json` (версия черновика `version: 1`).
+
+**Эксперты (последовательность по желанию):**
+1. **`floorplan_openai_layout`** — по текстовому ТЗ и единицам вызывает Chat API, возвращает `layout_draft` и готовый **`spec_json`** (v2, placeholder `library_key` + `openai_image_hint`).
+2. **`floorplan_layout_draft_merge`** — если черновик уже есть (например от другой LLM): только слияние в `spec_json`.
+3. **`floorplan_openai_equipment_images`** — для каждого `equipment` генерирует PNG (DALL·E и т.п.), прописывает `representation.external_raster.path`.
+4. **`floorplan_build_pipeline`** — финальный SVG/PDF/PNG с вложенными растрами (масштаб по габариту из JSON — источник истины).
+5. **`floorplan_openai_overview_image`** — отдельный **иллюстративный** обзор целого плана (масштаб может не совпасть с вектором).
+6. **`floorplan_full_openai_pipeline`** — один вызов: шаги 1→3→4→5 с общим `output_dir`.
+
+Зависимость в ExTella: `extella-pip install openai`.
 По умолчанию **`fython`** для всех экспертов пресета. **`parallel_task`** имеет смысл только при пакетной генерации множества планов (не входит в MVP).
 
 ## Каноническая модель (кратко)
@@ -34,7 +47,7 @@
 - `rooms[]`: `id`, `name`, `polygon`, опционально **`zone_type`**: `production` | `storage` | `other`
 - `walls[]` (опционально): отрезки + `thickness`
 - `openings[]` (опционально, MVP): зарезервировано
-- **`equipment[]` (v2)**: габарит `bbox` или `polygon`, `representation`: `library_key` | `parametric_symbol` | `external_svg`
+- **`equipment[]` (v2)**: габарит `bbox` или `polygon`, `representation`: `library_key` | `parametric_symbol` | `external_svg` | **`external_raster`** (`path` к PNG или `data_uri`)
 - **`annotations.callouts[]` (v2)**: выноски к оборудованию или к точке
 - `style.render_profile`: **`schematic`** | **`technical_bw`**; `style.technical` — толщины, штриховка склада
 

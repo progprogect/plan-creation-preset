@@ -12,7 +12,7 @@ include("from shapely.ops import unary_union", [])
 include("import svgwrite", ["extella-pip install svgwrite"])
 include("import cairosvg", ["extella-pip install cairosvg"])
 include("import matplotlib", ["extella-pip install matplotlib"])
-
+include("import openai", ["extella-pip install openai"])
 
 """
 Каноническая логика пресета планов: валидация, SVG (schematic / technical_bw), PDF∕PNG.
@@ -1208,19 +1208,305 @@ def strip_geom(normalized: Dict[str, Any]) -> Dict[str, Any]:
     out["equipment"] = eqs
     return out
 
-def floorplan_export_png(svg_path: str = "", output_path: str = "", dpi: int = 150) -> dict:
-    if not svg_path:
-        return {"status": "error", "message": "svg_path_required", "png_path": None}
-    p_in = Path(svg_path)
-    if not p_in.exists():
-        return {"status": "error", "message": f"file_not_found: {svg_path}", "png_path": None}
-    svg_str = p_in.read_text(encoding="utf-8")
-    if output_path:
-        p_out = Path(output_path)
-    else:
-        p_out = p_in.with_suffix(".png")
+"""
+Черновик раскладки (layout_draft) → канонический floorplan_spec v2.
+Без сетевых вызовов; используется экспертом merge и OpenAI layout.
+"""
+
+
+from typing import Any, Dict, List
+
+
+def _draft_rooms_poly_ok(rooms: List[Dict[str, Any]]) -> None:
+    for r in rooms:
+        poly = r.get("polygon")
+        if not isinstance(poly, list) or len(poly) < 3:
+            raise ValueError(f"layout_draft: комната '{r.get('id')}' — polygon >= 3 точек")
+
+
+def merge_layout_draft_to_spec(
+    draft: Dict[str, Any],
+    *,
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+) -> Dict[str, Any]:
+    """
+    Строит floorplan_spec v2: комнаты и оборудование с placeholder representation.
+    Текст для генерации PNG: representation.openai_image_hint.
+    """
+    if draft.get("version") != 1:
+        raise ValueError("layout_draft.version должен быть 1")
+    units = draft.get("units")
+    if units not in ("mm", "cm", "m"):
+        raise ValueError("layout_draft.units: mm | cm | m")
+    rooms_in = draft.get("rooms") or []
+    if not rooms_in:
+        raise ValueError("layout_draft: нужна минимум одна комната")
+    _draft_rooms_poly_ok(rooms_in)
+
+    title = str(draft.get("title") or "Floor plan")
+    rooms_out: List[Dict[str, Any]] = []
+    for idx, r in enumerate(rooms_in):
+        rid = str(r.get("id", f"room_{idx}"))
+        zt = r.get("zone_type", "other")
+        if zt not in ("production", "storage", "other"):
+            raise ValueError(f"room '{rid}': zone_type production|storage|other")
+        rooms_out.append(
+            {
+                "id": rid,
+                "name": str(r.get("name", rid)),
+                "zone_type": zt,
+                "polygon": r["polygon"],
+            }
+        )
+
+    equipment_out: List[Dict[str, Any]] = []
+    for ei, e in enumerate(draft.get("equipment") or []):
+        if not isinstance(e, dict):
+            raise ValueError(f"equipment #{ei} не объект")
+        eid = str(e.get("id", f"eq_{ei}"))
+        label = str(e.get("label", eid))
+        bb = e.get("bbox")
+        if not isinstance(bb, dict):
+            raise ValueError(f"equipment '{eid}': нужен bbox")
+        hint = str(e.get("text_description") or label)
+        equipment_out.append(
+            {
+                "id": eid,
+                "label": label,
+                "z_index": float(e.get("z_index", 0)),
+                "bbox": {
+                    "x": float(bb["x"]),
+                    "y": float(bb["y"]),
+                    "width": float(bb["width"]),
+                    "height": float(bb["height"]),
+                    "rotation": float(bb.get("rotation", 0) or 0),
+                },
+                "representation": {
+                    "library_key": "generic",
+                    "openai_image_hint": hint,
+                },
+            }
+        )
+
+    spec: Dict[str, Any] = {
+        "version": 2,
+        "units": units,
+        "title": title,
+        "style": {
+            "render_profile": render_profile if render_profile in ("schematic", "technical_bw") else "technical_bw",
+            "show_grid": show_grid,
+        },
+        "rooms": rooms_out,
+        "equipment": equipment_out,
+    }
+    if draft.get("annotations"):
+        spec["annotations"] = dict(draft["annotations"])
+    if draft.get("layout_notes"):
+        spec.setdefault("metadata", {})["layout_notes"] = str(draft["layout_notes"])
+    return spec
+
+
+LAYOUT_JSON_INSTRUCTIONS = """Верни один JSON-объект (без markdown) со структурой layout_draft:
+{
+  "version": 1,
+  "units": "cm"|"mm"|"m",
+  "title": "краткий заголовок плана",
+  "rooms": [ { "id", "name", "zone_type": "production"|"storage"|"other", "polygon": [[x,y],...] } ],
+  "equipment": [ {
+    "id": "строка_без_пробелов",
+    "label": "краткая подпись",
+    "bbox": { "x", "y", "width", "height", "rotation": 0 },
+    "text_description": "для картинки: вид сверху, ортогональная схема одного узла, узел: ...",
+    "z_index": 0
+  } ],
+  "annotations": { "callouts": [ { "id", "text", "target_id", "offset": { "dx", "dy" } } ] }  // опционально
+}
+Координаты в одних units; полигоны комнат простые без самопересечений; оборудование внутри контура зала."""
+
+"""Вызовы OpenAI: Chat (JSON) и сохранение изображения (Images API). Без зависимости от floorplan_core."""
+
+
+import base64
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict
+
+
+def resolve_openai_key(explicit: str = "") -> str:
+    k = (explicit or "").strip() or os.environ.get("OPENAI_API_KEY", "").strip()
+    if not k:
+        raise ValueError("openai_api_key: задайте параметр эксперта или переменную OPENAI_API_KEY")
+    return k
+
+
+def openai_chat_json(
+    *,
+    api_key: str,
+    model: str,
+    system: str,
+    user: str,
+) -> Dict[str, Any]:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+    r = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
+    raw = r.choices[0].message.content or "{}"
+    return json.loads(raw)
+
+
+def openai_save_image(
+    *,
+    api_key: str,
+    prompt: str,
+    out_path: Path,
+    model: str = "dall-e-3",
+    size: str = "1024x1024",
+) -> None:
+    from openai import OpenAI
+
+    client = OpenAI(api_key=api_key)
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    resp = client.images.generate(
+        model=model,
+        prompt=prompt[:4000],
+        size=size,
+        quality="standard",
+        n=1,
+        response_format="b64_json",
+    )
+    b64 = resp.data[0].b64_json
+    if not b64:
+        raise RuntimeError("images.generate: пустой b64_json")
+    out_path.write_bytes(base64.standard_b64decode(b64))
+
+
+def floorplan_full_openai_pipeline(
+    user_brief: str = "",
+    units: str = "cm",
+    openai_api_key: str = "",
+    chat_model: str = "gpt-4o-mini",
+    image_model: str = "dall-e-3",
+    outputs: str = "pdf,png,svg",
+    output_dir: str = "",
+    dpi: int = 150,
+    page_size: str = "A4",
+    orientation: str = "landscape",
+    render_profile: str = "technical_bw",
+    show_grid: bool = True,
+    skip_equipment_images: bool = False,
+    skip_overview: bool = False,
+    skip_existing_images: bool = True,
+) -> dict:
+    warnings: List[str] = []
+    errors: List[str] = []
+    layout_draft_json: Optional[str] = None
+    eq_paths: List[str] = []
+    overview_path: Optional[str] = None
     try:
-        svg_to_png(svg_str, p_out, dpi=int(dpi))
-        return {"status": "success", "png_path": str(p_out)}
+        key = resolve_openai_key(openai_api_key)
+        odir = Path(output_dir) if output_dir else Path("/tmp")
+        odir.mkdir(parents=True, exist_ok=True)
+        if not (user_brief or "").strip():
+            raise ValueError("user_brief_required")
+        system = (
+            "Ты инженер по планировке. Отвечай только валидным JSON без markdown. "
+            + LAYOUT_JSON_INSTRUCTIONS
+        )
+        user_msg = f"Единицы: {units}. Задача:\n{user_brief.strip()}"
+        draft = openai_chat_json(api_key=key, model=str(chat_model), system=system, user=user_msg)
+        if draft.get("version") != 1:
+            draft["version"] = 1
+        if "units" not in draft:
+            draft["units"] = units
+        layout_draft_json = json.dumps(draft, ensure_ascii=False)
+        spec = merge_layout_draft_to_spec(
+            draft,
+            render_profile=str(render_profile),
+            show_grid=bool(show_grid),
+        )
+        if not skip_equipment_images:
+            for eq in spec.get("equipment") or []:
+                eid = str(eq.get("id", "eq"))
+                rep = eq.get("representation") or {}
+                hint = str(rep.get("openai_image_hint") or eq.get("label") or eid)
+                png = odir / f"equipment_{eid}.png"
+                if skip_existing_images and png.is_file():
+                    warnings.append(f"skip_existing:{eid}")
+                else:
+                    prompt = (
+                        "Technical CAD-style line drawing, orthographic top-down view, thin black lines "
+                        "on pure white background, no text, no dimensions, single isolated industrial unit: "
+                        + hint[:2000]
+                    )
+                    try:
+                        openai_save_image(
+                            api_key=key, prompt=prompt, out_path=png, model=str(image_model)
+                        )
+                    except Exception as e:
+                        errors.append(f"equipment_image {eid}: {e}")
+                        continue
+                rep = dict(rep)
+                rep["external_raster"] = {"path": str(png.resolve())}
+                eq["representation"] = rep
+                eq_paths.append(str(png.resolve()))
+        if not skip_overview:
+            lines = [str(spec.get("title", "")), f"Units: {spec.get('units')}"]
+            for eq in spec.get("equipment") or []:
+                bb = eq.get("bbox") or {}
+                lines.append(
+                    f"- {eq.get('id')}: {eq.get('label')} @({bb.get('x')},{bb.get('y')}) {bb.get('width')}x{bb.get('height')}"
+                )
+            op = odir / f"floorplan_overview_{uuid.uuid4().hex[:8]}.png"
+            oprompt = (
+                "Industrial floor plan top-down schematic, black technical lines on white, "
+                "no readable text, overview:\n" + "\n".join(lines)[:6000]
+            )
+            try:
+                openai_save_image(api_key=key, prompt=oprompt, out_path=op, model=str(image_model))
+                overview_path = str(op.resolve())
+            except Exception as e:
+                errors.append(f"overview: {e}")
+        outs = [x.strip().lower() for x in str(outputs).split(",") if x.strip()]
+        if not outs:
+            outs = ["svg"]
+        result = run_pipeline(
+            spec,
+            outs,
+            odir,
+            dpi=int(dpi),
+            page_size=str(page_size),
+            orientation=str(orientation),
+        )
+        if isinstance(result, dict):
+            result["layout_draft_json"] = layout_draft_json
+            result["equipment_image_paths"] = eq_paths
+            result["overview_png_path"] = overview_path
+            for w in warnings:
+                result.setdefault("warnings", []).append(w)
+            for e in errors:
+                result.setdefault("errors", []).append(e)
+        return result
     except Exception as e:
-        return {"status": "error", "message": str(e), "png_path": None}
+        return {
+            "status": "error",
+            "message": str(e),
+            "paths": {},
+            "warnings": warnings,
+            "errors": errors + [str(e)],
+            "bounding_box": None,
+            "normalized_spec": None,
+            "layout_draft_json": layout_draft_json,
+            "equipment_image_paths": eq_paths,
+            "overview_png_path": overview_path,
+        }

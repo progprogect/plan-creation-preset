@@ -98,6 +98,7 @@
           },
           "representation": {
             "type": "object",
+            "description": "library_key | parametric_symbol | external_svg | external_raster:{path|data_uri}",
             "additionalProperties": true
           }
         }

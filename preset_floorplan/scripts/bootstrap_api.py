@@ -164,6 +164,92 @@ def main() -> None:
             "file": experts_dir / "floorplan_export_png.py",
             "kwargs": {"svg_path": "", "output_path": "", "dpi": 150},
         },
+        {
+            "name": "floorplan_layout_draft_merge",
+            "description": (
+                "Merge layout_draft JSON (schema layout_draft.schema.json) into floorplan_spec v2 string. "
+                "Params: layout_draft_json, title (optional), render_profile, show_grid."
+            ),
+            "file": experts_dir / "floorplan_layout_draft_merge.py",
+            "kwargs": {
+                "layout_draft_json": "",
+                "title": "",
+                "render_profile": "technical_bw",
+                "show_grid": True,
+            },
+        },
+        {
+            "name": "floorplan_openai_layout",
+            "description": (
+                "OpenAI Chat → layout_draft JSON + merged spec_json. "
+                "Params: user_brief, units, openai_api_key (or OPENAI_API_KEY), model, render_profile, show_grid. "
+                "Depends: extella-pip install openai."
+            ),
+            "file": experts_dir / "floorplan_openai_layout.py",
+            "kwargs": {
+                "user_brief": "",
+                "units": "cm",
+                "openai_api_key": "",
+                "model": "gpt-4o-mini",
+                "render_profile": "technical_bw",
+                "show_grid": True,
+            },
+        },
+        {
+            "name": "floorplan_openai_equipment_images",
+            "description": (
+                "For each equipment in spec v2, OpenAI Images → PNG, set representation.external_raster.path. "
+                "Uses openai_image_hint or label. Params: spec_json, output_dir, openai_api_key, image_model, skip_existing."
+            ),
+            "file": experts_dir / "floorplan_openai_equipment_images.py",
+            "kwargs": {
+                "spec_json": "",
+                "output_dir": "",
+                "openai_api_key": "",
+                "image_model": "dall-e-3",
+                "skip_existing": True,
+            },
+        },
+        {
+            "name": "floorplan_openai_overview_image",
+            "description": (
+                "OpenAI Images: one overview PNG from summary text (illustrative; not scale-accurate vs vector). "
+                "Params: summary_text, output_dir, openai_api_key, image_model."
+            ),
+            "file": experts_dir / "floorplan_openai_overview_image.py",
+            "kwargs": {
+                "summary_text": "",
+                "output_dir": "",
+                "openai_api_key": "",
+                "image_model": "dall-e-3",
+            },
+        },
+        {
+            "name": "floorplan_full_openai_pipeline",
+            "description": (
+                "Chain: OpenAI layout → equipment PNGs → optional overview PNG → floorplan_build_pipeline. "
+                "Params: user_brief, units, openai_api_key, chat_model, image_model, outputs, output_dir, dpi, "
+                "page_size, orientation, render_profile, show_grid, skip_equipment_images, skip_overview, skip_existing_images."
+            ),
+            "file": experts_dir / "floorplan_full_openai_pipeline.py",
+            "kwargs": {
+                "user_brief": "",
+                "units": "cm",
+                "openai_api_key": "",
+                "chat_model": "gpt-4o-mini",
+                "image_model": "dall-e-3",
+                "outputs": "pdf,png,svg",
+                "output_dir": "",
+                "dpi": 150,
+                "page_size": "A4",
+                "orientation": "landscape",
+                "render_profile": "technical_bw",
+                "show_grid": True,
+                "skip_equipment_images": False,
+                "skip_overview": False,
+                "skip_existing_images": True,
+            },
+        },
     ]
 
     for s in specs:

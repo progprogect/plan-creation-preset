@@ -310,6 +310,16 @@ def validate_and_normalize(spec: Dict[str, Any]) -> Tuple[Dict[str, Any], List[s
                     p = Path(str(ex["path"])).expanduser()
                     if not p.is_file():
                         warnings.append(f"equipment '{eid}': external_svg path не найден: {p}")
+            if rep.get("external_raster"):
+                er = rep["external_raster"]
+                if not isinstance(er, dict):
+                    raise ValueError(f"equipment '{eid}': external_raster объектом")
+                if er.get("data_uri") and len(str(er["data_uri"])) > 2_000_000:
+                    raise ValueError(f"equipment '{eid}': слишком большой data_uri")
+                elif er.get("path"):
+                    p = Path(str(er["path"])).expanduser()
+                    if not p.is_file():
+                        warnings.append(f"equipment '{eid}': external_raster path не найден: {p}")
             equipment_out.append(
                 {
                     "id": eid,
@@ -391,6 +401,22 @@ def _bounds(normalized: Dict[str, Any]) -> Tuple[float, float, float, float]:
     return float(minx), float(miny), float(maxx), float(maxy)
 
 
+def _external_raster_href(rep: Dict[str, Any]) -> Optional[str]:
+    """file:// или data: URI для SVG image href; None если нет валидного источника."""
+    er = rep.get("external_raster")
+    if not isinstance(er, dict):
+        return None
+    if er.get("data_uri"):
+        s = str(er["data_uri"]).strip()
+        if s.startswith("data:") and len(s) < 2_500_000:
+            return s
+    if er.get("path"):
+        p = Path(str(er["path"])).expanduser()
+        if p.is_file():
+            return p.resolve().as_uri()
+    return None
+
+
 def _equipment_transform(eq: Dict[str, Any]) -> Tuple[float, float, float, float, float]:
     if eq.get("bbox"):
         bb = eq["bbox"]
@@ -407,6 +433,8 @@ def _resolve_ops(eq: Dict[str, Any], w: float, h: float) -> List[Dict[str, Any]]
     if eq.get("footprint_only"):
         return library_generic(w, h, {})
     rep = eq.get("representation") or {}
+    if _external_raster_href(rep):
+        return []
     if rep.get("parametric_symbol"):
         return list(rep["parametric_symbol"])
     key = str(rep.get("library_key") or "generic")
@@ -655,6 +683,7 @@ def _spec_to_svg_schematic(normalized: Dict[str, Any], margin_ratio: float) -> s
                     )
                 )
         _embed_external_svg_layer(dwg, sorted_eq)
+        _embed_external_raster_layer(dwg, sorted_eq)
         _draw_callouts(dwg, normalized, ref)
 
     _draw_scale_bar_title(dwg, normalized, vb_x0, vb_y0, vb_w, vb_h, margin, dx, dy, wall_stroke)
@@ -759,6 +788,29 @@ def _embed_external_svg_layer(dwg: svgwrite.Drawing, equipment: List[Dict[str, A
             transform=f"translate({cx:.4f},{cy:.4f}) rotate({-rot:.4f}) translate({-lw / 2:.4f},{-lh / 2:.4f})"
         )
         sub.add(inner_xml)
+        g0.add(sub)
+
+
+def _embed_external_raster_layer(dwg: svgwrite.Drawing, equipment: List[Dict[str, Any]]) -> None:
+    g0 = dwg.add(dwg.g(id="external_raster_symbols"))
+    for eq in equipment:
+        rep = eq.get("representation") or {}
+        href = _external_raster_href(rep)
+        if not href:
+            continue
+        x0, y0, lw, lh, rot = _equipment_transform(eq)
+        cx, cy = x0 + lw / 2, y0 + lh / 2
+        sub = dwg.g(
+            transform=f"translate({cx:.4f},{cy:.4f}) rotate({-rot:.4f}) translate({-lw / 2:.4f},{-lh / 2:.4f})"
+        )
+        sub.add(
+            dwg.image(
+                href=href,
+                insert=(0, 0),
+                size=(lw, lh),
+                preserveAspectRatio="xMidYMid meet",
+            )
+        )
         g0.add(sub)
 
 
@@ -912,6 +964,16 @@ def _spec_to_svg_technical(normalized: Dict[str, Any], margin_ratio: float) -> s
         for op in _resolve_ops(eq, lw, lh):
             ph = pat_for_hatch if str(op.get("op")) == "hatch_rect" else None
             _apply_op(dwg, inner, op, eq_stroke, ph)
+        rh = _external_raster_href(eq.get("representation") or {})
+        if rh:
+            inner.add(
+                dwg.image(
+                    href=rh,
+                    insert=(0, 0),
+                    size=(lw, lh),
+                    preserveAspectRatio="xMidYMid meet",
+                )
+            )
         grp = dwg.g(id=f"eq_{eq['id']}")
         grp.add(inner)
         cgeom = eq["_footprint"].centroid

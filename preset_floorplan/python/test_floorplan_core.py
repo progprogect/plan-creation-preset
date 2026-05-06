@@ -1,11 +1,13 @@
 """Локальные smoke-тесты пресета (pytest)."""
 
+import base64
 import json
 from pathlib import Path
 
 import pytest
 
 from floorplan_core import run_pipeline, spec_to_svg, validate_and_normalize
+from floorplan_layout_merge import merge_layout_draft_to_spec
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
@@ -107,3 +109,62 @@ def test_v2_parametric_custom():
     n, _ = validate_and_normalize(spec)
     svg = spec_to_svg(n)
     assert "r=\"15\"" in svg or "circle" in svg
+
+
+def test_merge_layout_draft():
+    draft = {
+        "version": 1,
+        "units": "cm",
+        "title": "Hall",
+        "rooms": [
+            {"id": "r1", "name": "Production", "zone_type": "production", "polygon": [[0, 0], [200, 0], [200, 100], [0, 100]]},
+        ],
+        "equipment": [
+            {
+                "id": "m1",
+                "label": "Machine",
+                "bbox": {"x": 40, "y": 30, "width": 50, "height": 40, "rotation": 0},
+                "text_description": "conveyor top view",
+            }
+        ],
+    }
+    spec = merge_layout_draft_to_spec(draft, render_profile="technical_bw", show_grid=False)
+    assert spec["version"] == 2
+    assert spec["equipment"][0]["representation"]["openai_image_hint"] == "conveyor top view"
+    n, w = validate_and_normalize(spec)
+    assert len(n["rooms"]) == 1
+    assert not w
+
+
+def test_external_raster_in_technical_svg(tmp_path):
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    img_path = tmp_path / "eq.png"
+    img_path.write_bytes(png_bytes)
+    spec = {
+        "version": 2,
+        "units": "cm",
+        "title": "r",
+        "style": {"render_profile": "technical_bw", "show_grid": False},
+        "rooms": [
+            {
+                "id": "r1",
+                "name": "R",
+                "zone_type": "other",
+                "polygon": [[0, 0], [300, 0], [300, 200], [0, 200]],
+            }
+        ],
+        "equipment": [
+            {
+                "id": "e1",
+                "label": "X",
+                "bbox": {"x": 50, "y": 50, "width": 80, "height": 60, "rotation": 0},
+                "representation": {"external_raster": {"path": str(img_path)}},
+            }
+        ],
+    }
+    n, _ = validate_and_normalize(spec)
+    svg = spec_to_svg(n)
+    assert "image" in svg
+    assert "file://" in svg or str(img_path.resolve()) in svg
