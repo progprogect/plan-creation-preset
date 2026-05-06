@@ -570,6 +570,7 @@ curl -X POST https://api.extella.ai/api/task/check \
 | Нет PDF с вектором, только fallback PNG | Нет **Cairo/CairoSVG** на воркере | Ожидаемо на части сред; **SVG** в выводе обычно есть; для PDF — окружение с Cairo или локальный target |
 | Агент запускает подряд **`floorplan_openai_layout`** и **`floorplan_full_openai_pipeline`** | В концепте раньше выглядело как «список шагов» | Для текста ТЗ — **только** `floorplan_full_openai_pipeline`; layout отдельно — только для явной пошаговой отладки |
 | Плохие / странные картинки узлов | Старая модель **DALL·E 3** или короткий промпт | В пресете по умолчанию **`gpt-image-2`** (GPT Image 2, OpenAI, 2026). Это **не** GPT‑2 (текст). Резерв: параметр **`image_model`** = `dall-e-3` |
+| Итоговый PNG «рвётся» / не совпадает с ожиданием | PNG строился **растром SVG** (Cairo/matplotlib + вложенные растры) | В **`floorplan_full_openai_pipeline`** по умолчанию **`final_png_from_openai: true`** — **`paths.png`** из **OpenAI Images**; геометрия в **`paths.svg`**. Отключить: **`final_png_from_openai: false`** |
 
 Документация OpenAI по модели: [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).
 

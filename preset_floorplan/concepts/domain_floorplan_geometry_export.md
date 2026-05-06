@@ -22,6 +22,7 @@
 - **Оркестрация:** по тексту ТЗ обычно достаточно **одного** эксперта **`floorplan_full_openai_pipeline`** (внутри Chat + при необходимости картинки + экспорт). Не цеплять **`floorplan_openai_layout`** перед ним на то же ТЗ.
 - Chat (строгий JSON): **`floorplan_openai_layout`** или шаг внутри full pipeline. Images: **`floorplan_openai_equipment_images`**, **`floorplan_openai_overview_image`**.
 - Модель **картинок** по умолчанию: **`gpt-image-2`** (GPT Image 2); резерв **`dall-e-3`**. Не путать с **GPT‑2** (текст).
+- В **`floorplan_full_openai_pipeline`** при **`outputs`**, содержащем **`png`**, итоговый **`paths.png`** по умолчанию — **OpenAI Images** по полному промпту из spec; точные размеры и привязки — в **`paths.svg`**.
 - Эксперт слияния черновика: **`floorplan_layout_draft_merge`** — если `layout_draft` уже есть снаружи.
 - Справочник `library_key`: `conveyor_linear`, `robot_cell`, `tank`, `workstation`, `pallet_conveyor`, `packing_block`, `stretch_wrapper`, `generic`.
 

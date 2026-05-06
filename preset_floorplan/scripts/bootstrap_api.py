@@ -297,7 +297,8 @@ def main() -> None:
             "description": (
                 "Chain: OpenAI layout → equipment PNGs → optional overview PNG → floorplan_build_pipeline. "
                 "Params: user_brief, units, openai_api_key, chat_model, image_model, outputs, output_dir, dpi, "
-                "page_size, orientation, render_profile, show_grid, skip_equipment_images, skip_overview, skip_existing_images."
+                "page_size, orientation, render_profile, show_grid, skip_equipment_images, skip_overview, skip_existing_images, "
+                "final_png_from_openai (default true: paths.png from OpenAI Images using full spec prompt; geometry in svg)."
             ),
             "file": experts_dir / "floorplan_full_openai_pipeline.py",
             "kwargs": {
@@ -316,6 +317,7 @@ def main() -> None:
                 "skip_equipment_images": False,
                 "skip_overview": False,
                 "skip_existing_images": True,
+                "final_png_from_openai": True,
             },
         },
     ]

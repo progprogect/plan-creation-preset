@@ -30,6 +30,7 @@ def floorplan_full_openai_pipeline(
     skip_equipment_images: bool = False,
     skip_overview: bool = False,
     skip_existing_images: bool = True,
+    final_png_from_openai: bool = True,
 ) -> dict:
     """Точка входа fython: первая top-level def в файле (до тела floorplan_core)."""
     return _floorplan_full_openai_pipeline_run(
@@ -48,6 +49,7 @@ def floorplan_full_openai_pipeline(
         skip_equipment_images=skip_equipment_images,
         skip_overview=skip_overview,
         skip_existing_images=skip_existing_images,
+        final_png_from_openai=final_png_from_openai,
     )
 
 """
@@ -1375,7 +1377,7 @@ import base64
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 def output_dir_path(output_dir: str) -> Path:
@@ -1384,6 +1386,61 @@ def output_dir_path(output_dir: str) -> Path:
     if not s:
         return Path("/tmp")
     return Path(s).expanduser()
+
+
+def build_full_floorplan_openai_prompt(spec: Dict[str, Any]) -> str:
+    """
+    Один промпт для GPT Image: целый план сверху по данным spec (без _geom).
+    Геометрия в SVG остаётся канонической; это растр для визуально ровного итога.
+    """
+    units = spec.get("units", "cm")
+    title = spec.get("title", "Floor plan")
+    st = spec.get("style") or {}
+    grid = st.get("show_grid", True)
+    grid_step = st.get("grid_step")
+    profile = st.get("render_profile", "technical_bw")
+    lines: List[str] = [
+        "Single orthographic TOP-DOWN industrial floor plan. Flat 2D only, no perspective, no 3D render.",
+        "Visual style: crisp thin BLACK linework on pure WHITE background, technical CAD / line drawing,",
+        "no photorealistic textures, no shadows, no gradients. Clean and readable.",
+        f"Caption allowed once (small): {json.dumps(title, ensure_ascii=False)}. All numeric data below in units: {units}.",
+        f"Render profile intent: {profile}. Light square grid: {'on' if grid else 'off'}.",
+    ]
+    if grid_step is not None:
+        lines.append(f"Grid step: {grid_step} {units}.")
+    lines.append("ROOMS — draw each as closed polygon (vertex order as given):")
+    for r in spec.get("rooms") or []:
+        poly = r.get("polygon")
+        if isinstance(poly, list) and len(poly) >= 2:
+            lines.append(
+                f"  room_id={r.get('id')} name={json.dumps(r.get('name',''), ensure_ascii=False)} "
+                f"zone_type={r.get('zone_type','other')} polygon={json.dumps(poly, ensure_ascii=False)}"
+            )
+    lines.append("EQUIPMENT — top-down symbols inside room, rectangles unless rotation specified:")
+    for e in spec.get("equipment") or []:
+        bb = e.get("bbox") or {}
+        hint = ""
+        rep = e.get("representation") or {}
+        if isinstance(rep, dict):
+            hint = str(rep.get("openai_image_hint") or "")[:400]
+        lines.append(
+            f"  eq_id={e.get('id')} label={json.dumps(e.get('label',''), ensure_ascii=False)} "
+            f"x={bb.get('x')} y={bb.get('y')} w={bb.get('width')} h={bb.get('height')} "
+            f"rotation_deg={bb.get('rotation', 0)} symbol_hint={json.dumps(hint, ensure_ascii=False)}"
+        )
+    callouts = (spec.get("annotations") or {}).get("callouts") or []
+    if callouts:
+        lines.append("NUMBERED CALLOUTS — small circles/leaders, minimal text:")
+        for c in callouts:
+            lines.append(
+                f"  id={c.get('id')} text={json.dumps(str(c.get('text','')), ensure_ascii=False)} "
+                f"target_equipment={c.get('target_id')}"
+            )
+    lines.append(
+        "Keep equipment symbols schematic (conveyors as parallel lines, robot as circle + arm hint, pallets as small rectangles). "
+        "Respect relative placement and proportions from coordinates; center the whole layout in the frame."
+    )
+    return "\n".join(lines)[:31000]
 
 
 def resolve_openai_key(explicit: str = "") -> str:
@@ -1469,6 +1526,7 @@ def _floorplan_full_openai_pipeline_run(
     skip_equipment_images: bool = False,
     skip_overview: bool = False,
     skip_existing_images: bool = True,
+    final_png_from_openai: bool = True,
 ) -> dict:
     warnings: List[str] = []
     errors: List[str] = []
@@ -1542,9 +1600,11 @@ def _floorplan_full_openai_pipeline_run(
         outs = [x.strip().lower() for x in str(outputs).split(",") if x.strip()]
         if not outs:
             outs = ["svg"]
+        want_openai_png = bool(final_png_from_openai) and "png" in outs
+        outs_run = [x for x in outs if not (want_openai_png and x == "png")]
         result = run_pipeline(
             spec,
-            outs,
+            outs_run,
             odir,
             dpi=int(dpi),
             page_size=str(page_size),
@@ -1558,6 +1618,27 @@ def _floorplan_full_openai_pipeline_run(
                 result.setdefault("warnings", []).append(w)
             for e in errors:
                 result.setdefault("errors", []).append(e)
+            if want_openai_png:
+                try:
+                    clean = result.get("normalized_spec")
+                    if not isinstance(clean, dict) or not clean:
+                        n2, _w2 = validate_and_normalize(spec)
+                        clean = strip_geom(n2)
+                    prompt = build_full_floorplan_openai_prompt(clean)
+                    fp = odir / f"floorplan_openai_final_{uuid.uuid4().hex[:8]}.png"
+                    openai_save_image(
+                        api_key=key,
+                        prompt=prompt,
+                        out_path=fp,
+                        model=str(image_model),
+                        size="1536x1024",
+                    )
+                    result.setdefault("paths", {})["png"] = str(fp.resolve())
+                    result.setdefault("warnings", []).append(
+                        "png_from_openai_images_api: один кадр по spec; точная геометрия в svg"
+                    )
+                except Exception as e:
+                    result.setdefault("errors", []).append(f"openai_final_png: {e}")
         return result
     except Exception as e:
         return {

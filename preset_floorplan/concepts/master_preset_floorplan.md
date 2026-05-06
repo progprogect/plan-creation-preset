@@ -45,7 +45,7 @@
 
 **Схема черновика раскладки:** `preset_floorplan/schema/layout_draft.schema.json` (версия черновика `version: 1`).
 
-**Нормальный путь:** один вызов **`floorplan_full_openai_pipeline`** — внутри: Chat → layout/spec → (опц.) изображения узлов через **`image_model`** (по умолчанию `gpt-image-2`) → экспорт. Отдельный вызов **`floorplan_layout_draft_merge`** при этом **не** нужен.
+**Нормальный путь:** один вызов **`floorplan_full_openai_pipeline`** — внутри: Chat → layout/spec → (опц.) изображения узлов через **`image_model`** (по умолчанию `gpt-image-2`) → экспорт. Если в **`outputs`** есть **`png`**, по умолчанию (**`final_png_from_openai` = true**) итоговый **`paths.png`** — **один кадр из OpenAI Images** (промпт из нормализованного spec, **1536×1024**), без растровки SVG через Cairo/matplotlib. Каноническая геометрия — в **`paths.svg`** (и PDF при необходимости). Старое повечение PNG из вектора: **`final_png_from_openai` = false**. Отдельный вызов **`floorplan_layout_draft_merge`** при этом **не** нужен.
 
 Зависимость в ExTella: `extella-pip install openai` (актуальный SDK; для `gpt-image-2` может понадобиться обновление пакета).
 

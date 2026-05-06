@@ -6,7 +6,7 @@ import base64
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 def output_dir_path(output_dir: str) -> Path:
@@ -15,6 +15,61 @@ def output_dir_path(output_dir: str) -> Path:
     if not s:
         return Path("/tmp")
     return Path(s).expanduser()
+
+
+def build_full_floorplan_openai_prompt(spec: Dict[str, Any]) -> str:
+    """
+    Один промпт для GPT Image: целый план сверху по данным spec (без _geom).
+    Геометрия в SVG остаётся канонической; это растр для визуально ровного итога.
+    """
+    units = spec.get("units", "cm")
+    title = spec.get("title", "Floor plan")
+    st = spec.get("style") or {}
+    grid = st.get("show_grid", True)
+    grid_step = st.get("grid_step")
+    profile = st.get("render_profile", "technical_bw")
+    lines: List[str] = [
+        "Single orthographic TOP-DOWN industrial floor plan. Flat 2D only, no perspective, no 3D render.",
+        "Visual style: crisp thin BLACK linework on pure WHITE background, technical CAD / line drawing,",
+        "no photorealistic textures, no shadows, no gradients. Clean and readable.",
+        f"Caption allowed once (small): {json.dumps(title, ensure_ascii=False)}. All numeric data below in units: {units}.",
+        f"Render profile intent: {profile}. Light square grid: {'on' if grid else 'off'}.",
+    ]
+    if grid_step is not None:
+        lines.append(f"Grid step: {grid_step} {units}.")
+    lines.append("ROOMS — draw each as closed polygon (vertex order as given):")
+    for r in spec.get("rooms") or []:
+        poly = r.get("polygon")
+        if isinstance(poly, list) and len(poly) >= 2:
+            lines.append(
+                f"  room_id={r.get('id')} name={json.dumps(r.get('name',''), ensure_ascii=False)} "
+                f"zone_type={r.get('zone_type','other')} polygon={json.dumps(poly, ensure_ascii=False)}"
+            )
+    lines.append("EQUIPMENT — top-down symbols inside room, rectangles unless rotation specified:")
+    for e in spec.get("equipment") or []:
+        bb = e.get("bbox") or {}
+        hint = ""
+        rep = e.get("representation") or {}
+        if isinstance(rep, dict):
+            hint = str(rep.get("openai_image_hint") or "")[:400]
+        lines.append(
+            f"  eq_id={e.get('id')} label={json.dumps(e.get('label',''), ensure_ascii=False)} "
+            f"x={bb.get('x')} y={bb.get('y')} w={bb.get('width')} h={bb.get('height')} "
+            f"rotation_deg={bb.get('rotation', 0)} symbol_hint={json.dumps(hint, ensure_ascii=False)}"
+        )
+    callouts = (spec.get("annotations") or {}).get("callouts") or []
+    if callouts:
+        lines.append("NUMBERED CALLOUTS — small circles/leaders, minimal text:")
+        for c in callouts:
+            lines.append(
+                f"  id={c.get('id')} text={json.dumps(str(c.get('text','')), ensure_ascii=False)} "
+                f"target_equipment={c.get('target_id')}"
+            )
+    lines.append(
+        "Keep equipment symbols schematic (conveyors as parallel lines, robot as circle + arm hint, pallets as small rectangles). "
+        "Respect relative placement and proportions from coordinates; center the whole layout in the frame."
+    )
+    return "\n".join(lines)[:31000]
 
 
 def resolve_openai_key(explicit: str = "") -> str:
