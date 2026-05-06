@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "units": "cm",
+  "title": "Example: two rooms + corridor",
+  "rooms": [
+    {
+      "id": "r1",
+      "name": "Bedroom",
+      "polygon": [[0, 0], [300, 0], [300, 280], [0, 280]]
+    },
+    {
+      "id": "r2",
+      "name": "Kitchen",
+      "polygon": [[320, 0], [620, 0], [620, 280], [320, 280]]
+    },
+    {
+      "id": "c1",
+      "name": "Corridor",
+      "polygon": [[0, 300], [620, 300], [620, 380], [0, 380]]
+    }
+  ],
+  "walls": [
+    {
+      "id": "w_extra",
+      "x1": 300,
+      "y1": 140,
+      "x2": 320,
+      "y2": 140,
+      "thickness": 12
+    }
+  ],
+  "style": {
+    "show_grid": false,
+    "wall_stroke_mm": 2
+  }
+}

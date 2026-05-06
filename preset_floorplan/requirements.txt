@@ -1,0 +1,4 @@
+shapely>=2.0.0
+svgwrite>=1.4.3
+cairosvg>=2.7.0
+matplotlib>=3.8.0

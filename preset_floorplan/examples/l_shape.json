@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "units": "cm",
+  "title": "Example: L-shape",
+  "rooms": [
+    {
+      "id": "r1",
+      "name": "Living",
+      "polygon": [[0, 0], [400, 0], [400, 250], [150, 250], [150, 350], [0, 350]]
+    }
+  ],
+  "style": {
+    "show_grid": true,
+    "grid_step": 50
+  }
+}
