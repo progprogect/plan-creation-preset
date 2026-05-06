@@ -578,3 +578,4 @@ curl -X POST https://api.extella.ai/api/task/check \
 
 Публикация пресета в Extella: переменная **`EXTELLA_API_TOKEN`** (то же значение, что и **`EXTELLA_TOKEN`** в примерах выше), скрипт `preset_floorplan/scripts/bootstrap_api.py`.
 
+**Ответ `POST /api/expert/run`:** при **`wait: false`** поле **`result`** иногда приходит **строкой** с Python-представлением dict (как у `repr()`), а не JSON. Для разбора удобно **`ast.literal_eval(result)`** (после проверки, что строка начинается с `{`). Опрос **`/api/task/check`** в части окружений даёт **404** — надёжнее для длинных задач снова вызывать **`wait: false`** с увеличенным HTTP-timeout клиента или повторять запрос из UI.
